@@ -170,4 +170,4 @@ USERDATA
 
 end
 
-after :deploy, "deploy:snapshot"
+after 'deploy:cleanup', "deploy:snapshot"
