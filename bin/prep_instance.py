@@ -75,7 +75,7 @@ def attach_snapshot_to_volume(conn, args, volume):
     volume_status = conn.attach_volume(volume.id, args.instance_id, args.device_key)
     wait_volume(conn, args, volume, 'in-use')
     wait_fstab(args, 'present')
-    conn.modify_instance_attribute('blockDeviceMapping', { args.device_key : True })
+    conn.modify_instance_attribute(args.instance_id, 'blockDeviceMapping', { args.device_key : True })
     return True
 
 def wait_fstab(args, expected_status):
