@@ -1,0 +1,1 @@
+load File.expand_path("../capistrano/tasks/ebs_snapshot.cap", __FILE__)
