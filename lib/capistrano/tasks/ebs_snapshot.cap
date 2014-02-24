@@ -2,7 +2,8 @@ namespace :deploy do
 
   task :snapshot do
     on primary(:app) do
-      execute "BOTO_CONFIG=~/.boto #{deploy_path}/bin/snapshot.py -t app_#{fetch(:application)}"
+      upload! File.expand_path('../../../../bin/snapshot.py', __FILE__), './snapshot.py'
+      execute "BOTO_CONFIG=~/.boto ~/snapshot.py -t app_#{fetch(:application)}"
     end
   end
 end
