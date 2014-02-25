@@ -176,4 +176,4 @@ USERDATA
 
 end
 
-after 'deploy:cleanup', "deploy:snapshot"
+after 'deploy:restart', "deploy:snapshot"
