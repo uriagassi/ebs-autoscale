@@ -19,7 +19,7 @@ end
 def get_names_from_repository(base_name, repository)
   existing_names = []
   repository.each_batch do |batch|
-    existing_names += batch..map(&:name).select { |name| name[/^#{base_name}/] }
+    existing_names += batch.map(&:name).select { |name| name[/^#{base_name}/] }
   end
   existing_names
 end
