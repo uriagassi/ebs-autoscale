@@ -129,7 +129,9 @@ USERDATA
 
   before :fetch_primary_instance, :aws_credentials
 
-  before :update_ami, :aws_credentials, :prepare_stub do
+  before :update_ami, :aws_credentials, :prepare_stub
+
+  task :prepare_stub do
     on roles(:stub) do
       upload! File.expand_path('../../../../bin/userdata.sh', __FILE__), './userdata.sh'
       upload! File.expand_path('../../../../bin/prep_instance.py', __FILE__), './prep_instance.py'
@@ -140,7 +142,9 @@ USERDATA
 
   before :setup_launch_configuration, :fetch_primary_instance
 
-  before :setup_ami, :fetch_primary_instance, :prepare_primary do
+  before :setup_ami, :fetch_primary_instance, :prepare_primary
+
+  task :prepare_primary do
     on primary(:app) do
       if roles(:stub).empty?
         info "uploading"
@@ -156,7 +160,9 @@ USERDATA
     end
   end
 
-  after :setup_ami, :revert_primary do
+  after :setup_ami, :revert_primary
+
+  task :revert_primary do
     on primary(:app) do
       unless roles(:stub).empty?
         info 'Stub instance already exists'
