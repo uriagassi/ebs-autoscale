@@ -129,8 +129,6 @@ USERDATA
 
   before :fetch_primary_instance, :aws_credentials
 
-  before :update_ami, :aws_credentials, :prepare_stub
-
   task :prepare_stub do
     on roles(:stub) do
       upload! File.expand_path('../../../../bin/userdata.sh', __FILE__), './userdata.sh'
@@ -138,11 +136,11 @@ USERDATA
     end
   end
 
+  before :update_ami, :aws_credentials, :prepare_stub
+
   before :setup_scaling_group, :fetch_primary_instance
 
   before :setup_launch_configuration, :fetch_primary_instance
-
-  before :setup_ami, :fetch_primary_instance, :prepare_primary
 
   task :prepare_primary do
     on primary(:app) do
@@ -160,7 +158,7 @@ USERDATA
     end
   end
 
-  after :setup_ami, :revert_primary
+  before :setup_ami, :fetch_primary_instance, :prepare_primary
 
   task :revert_primary do
     on primary(:app) do
@@ -173,6 +171,8 @@ USERDATA
       info "done"
     end
   end
+
+  after :setup_ami, :revert_primary
 
 end
 
