@@ -10,23 +10,23 @@ end
 
 def get_next_name(image_name, old_image_names)
   if old_image_names != nil
-    last_idx = old_image_names.map { |s| s[/#{image_name}\-?(.*)/, 1].to_i(16) }.max
+    last_idx = old_image_names.map { |s| s[/#{image_name}\-?(.*)/, 1].to_i(16) }.max || 0
     image_name = "#{image_name}-#{(last_idx+1).to_s(16)}"
   end
   image_name
 end
 
 def get_names_from_repository(base_name, repository)
-  existing_names = []
+  existing_names = {}
   repository.each_batch do |batch|
-    existing_names += batch.map(&:name).select { |name| name[/^#{base_name}/] }
+    existing_names.merge! Hash[batch.map{|i| [i.name, i]}.select { |name, i| name[/^#{base_name}/] }]
   end
   existing_names
 end
 
 def get_next_name_from_repository(base_name, repository)
   existing_names = get_names_from_repository(base_name, repository)
-  get_next_name(base_name, existing_names)
+  [get_next_name(base_name, existing_names.keys), existing_names.max_by { |k,_| k }[1]]
 end
 
 namespace :autoscale do
@@ -124,24 +124,40 @@ namespace :autoscale do
           user_data: <<USERDATA
 #!/bin/bash
 /home/ubuntu/userdata.sh #{fetch(:application)} #{fetch(:application)}-instance #{fetch(:app_deploy_tag)}
+#{fetch(:as_startup_script)}
 USERDATA
       }
-      name = get_next_name_from_repository(fetch(:application), fetch(:auto_scaling).launch_configurations)
+      name, _ = get_next_name_from_repository(fetch(:application), fetch(:auto_scaling).launch_configurations)
       fetch(:auto_scaling).launch_configurations.create(name, image.id, fetch(:as_instance_type, instance.instance_type), new_instance_data)
     end
   end
 
   task :setup_scaling_group do
-    instance = fetch(:primary_instance)
-    name = get_next_name_from_repository(fetch(:application), fetch(:auto_scaling).groups)
-    launch_configuration = get_names_from_repository(fetch(:application), fetch(:auto_scaling).launch_configurations).max
-    fetch(:auto_scaling).groups.create(name,
-                                       launch_configuration: launch_configuration,
-                                       min_size: fetch(:auto_scale_min_size, 2),
-                                       max_size: fetch(:auto_scale_max_size, 6),
-                                       subnets: [*fetch(:as_subnet, instance.subnet)],
-                                       load_balancers: fetch(:load_balancers)
-    )
+    run_locally do
+      instance = fetch(:primary_instance)
+      name, last = get_next_name_from_repository(fetch(:application), fetch(:auto_scaling).groups)
+      launch_configuration = get_names_from_repository(fetch(:application), fetch(:auto_scaling).launch_configurations).keys.max
+      new_group = fetch(:auto_scaling).groups.create(name,
+                                                     launch_configuration: launch_configuration,
+                                                     min_size: fetch(:auto_scale_min_size, 2),
+                                                     max_size: fetch(:auto_scale_max_size, 6),
+                                                     subnets: [*fetch(:as_subnet, instance.subnet)],
+                                                     load_balancers: fetch(:load_balancers)
+      )
+      if last
+        @cloud_watch ||= AWS::CloudWatch.new({access_key_id: fetch(:aws_access_key_id), secret_access_key: fetch(:aws_secret_access_key), region: fetch(:aws_region, 'us-east-1')}.merge! fetch(:aws_params, {}))
+        last.scaling_policies.each do |policy|
+          props = Hash[%i(adjustment_type scaling_adjustment cooldown min_adjustment_step).map { |s| [s, policy.send(s)] }.reject { |_, v| v.nil? }]
+          new_group.scaling_policies[policy.name].put(props)
+          policy.alarms.each do |k|
+            alarm = @cloud_watch.alarms[k]
+            alarm_props = Hash[%i(namespace metric_name comparison_operator evaluation_periods period statistic threshold insufficient_data_actions ok_actions actions_enabled alarm_actions alarm_description unit).map { |s| [s, alarm.send(s)] }.reject { |_, v| v.nil? }]
+            (alarm_props[:alarm_actions] ||= []) << new_group.scaling_policies[policy.name].arn
+            alarm.update(alarm_props)
+          end
+        end
+      end
+    end
   end
 
   before :fetch_primary_instance, :aws_credentials
@@ -175,7 +191,9 @@ USERDATA
     end
   end
 
-  before :setup_ami, :fetch_primary_instance, :prepare_primary
+  before :setup_ami, :prepare_primary
+
+  before :setup_ami, :fetch_primary_instance
 
   task :revert_primary do
     on primary(:app) do
@@ -189,8 +207,8 @@ USERDATA
     end
   end
 
-  after :setup_ami, :revert_primary
+  after :setup_ami, 'autoscale:revert_primary'
 
 end
 
-after 'deploy:restart', "deploy:snapshot"
+after 'deploy:finishing', "deploy:snapshot"
