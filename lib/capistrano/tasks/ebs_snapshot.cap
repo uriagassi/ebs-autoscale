@@ -80,6 +80,13 @@ namespace :autoscale do
     end
   end
 
+  task :setup_ebs do
+    on primary(:app) do
+      instance_tags = %Q["{\\"Name\\":\\"#{fetch(:application)}-instance\\",\\"deploy\\":\\"#{fetch(:app_deploy_tag)}\\"}"]
+      execute "BOTO_CONFIG=~/.boto ~/prep_instance.py -g #{instance_tags} -t app_#{fetch(:application)} -N"
+    end
+  end
+
   task :update_ami do
     run_locally do
       instance = nil
@@ -175,9 +182,12 @@ USERDATA
 
   before :setup_launch_configuration, :fetch_primary_instance
 
+  task :validate_stub_instance do
+    fail 'stub already exists' unless roles(:stub).empty?
+  end
+
   task :prepare_primary do
     on primary(:app) do
-      if roles(:stub).empty?
         info "uploading"
         upload! File.expand_path('../../../../bin/userdata.sh', __FILE__), './userdata.sh'
         upload! File.expand_path('../../../../bin/prep_instance.py', __FILE__), './prep_instance.py'
@@ -185,22 +195,15 @@ USERDATA
         execute "mv #{deploy_path} #{deploy_path}.static"
 
         info "done uploading"
-      else
-        info 'Stub instance already exists'
-      end
     end
   end
 
-  before :setup_ami, :prepare_primary
+  before :setup_ami, :validate_stub_instance, :prepare_primary
 
   before :setup_ami, :fetch_primary_instance
 
   task :revert_primary do
     on primary(:app) do
-      unless roles(:stub).empty?
-        info 'Stub instance already exists'
-        return
-      end
       info "reverting"
       execute "mv #{deploy_path}.static #{deploy_path}"
       info "done"
@@ -208,6 +211,9 @@ USERDATA
   end
 
   after :setup_ami, 'autoscale:revert_primary'
+
+  before :setup_ebs, :prepare_primary
+  after :setup_ebs, 'autoscale:revert_primary', 'deploy:snapshot'
 
 end
 

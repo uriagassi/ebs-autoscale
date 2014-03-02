@@ -30,6 +30,8 @@ def parsed_args():
     parser.add_argument('-z', "--availability_zone",
             help="The availability_zone in which to create the volume. Will be appended to the region arg. default: c",
             default=boto.utils.get_instance_metadata()['placement']['availability-zone'])
+    parser.add_argument('-N', "--no_snapshot", help="Creates a new volume not based on a snapshot", action="store_true")
+
     return parser.parse_args()
 
 
@@ -38,12 +40,18 @@ def main():
     print 'connecting to ' + args.region
     conn = ec2.connect_to_region(args.region)
     print 'connected'
-    snapshot = most_recent_snapshot(conn, args)
-    print 'got snapshot ' + snapshot.id + '. creating volume'
+    if (args.no_snapshot == True):
+      snapshot = None
+      print 'creating volume without snapshot'
+    else:
+      snapshot = most_recent_snapshot(conn, args)
+      print 'got snapshot ' + snapshot.id + '. creating volume'
     volume = create_volume_from_snapshot(conn, args, snapshot)
     print 'volume ' + volume.id + ' created'
     attach_snapshot_to_volume(conn, args, volume)
+    print 'attached'
     apply_launch_tags(conn, args)
+    print 'applied launch tags'
     print 'done!'
     exit(0)
 
