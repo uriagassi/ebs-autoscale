@@ -10,13 +10,12 @@ INSTANCE_TAGS="{\"Name\":\"$2\",\"deploy\":\"$3\"}"
 
 if [ $? -eq 0 ]; then
     if [ ! -d /cp ]; then
-        sudo mkdir -m 000 /cp
+        sudo mkdir /cp
         sudo chown ubuntu /cp
-        chmod +xwr /cp
     fi
 
     if [ ! -d /home/ubuntu/$1 ]; then
-        mkdir -m 000 -p /home/ubuntu/$1
+        mkdir -p /home/ubuntu/$1
    fi
 
    grep "$1_fstab_setup" /etc/fstab

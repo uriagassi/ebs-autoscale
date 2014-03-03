@@ -26,7 +26,7 @@ end
 
 def get_next_name_from_repository(base_name, repository)
   existing_names = get_names_from_repository(base_name, repository)
-  [get_next_name(base_name, existing_names.keys), existing_names.max_by { |k,_| k }[1]]
+  [get_next_name(base_name, existing_names.keys), (existing_names.max_by { |k,_| k } || []).last ]
 end
 
 namespace :autoscale do
@@ -129,7 +129,8 @@ namespace :autoscale do
           associate_public_ip_address: true,
           iam_instance_profile: fetch(:iam_role),
           user_data: <<USERDATA
-#!/bin/bash
+#!/bin/bash -ex
+exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
 /home/ubuntu/userdata.sh #{fetch(:application)} #{fetch(:application)}-instance #{fetch(:app_deploy_tag)}
 #{fetch(:as_startup_script)}
 USERDATA
@@ -176,7 +177,9 @@ USERDATA
     end
   end
 
-  before :update_ami, :aws_credentials, :prepare_stub
+  before :update_ami, :prepare_stub
+
+  before :update_ami, :aws_credentials
 
   before :setup_scaling_group, :fetch_primary_instance
 
@@ -198,7 +201,8 @@ USERDATA
     end
   end
 
-  before :setup_ami, :validate_stub_instance, :prepare_primary
+  before :setup_ami, :validate_stub_instance
+  before :setup_ami, :prepare_primary
 
   before :setup_ami, :fetch_primary_instance
 
