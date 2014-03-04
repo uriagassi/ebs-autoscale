@@ -1,0 +1,47 @@
+namespace :autoscale do
+
+  task :aws_credentials do
+    credential_file = fetch(:aws_credential_file, ENV['AWS_CREDENTIAL_FILE'])
+
+    fetch(:aws_access_key_id) { -> { ENV['AWS_ACCESS_KEY_ID'] || Capistrano::Ec2tag.read_from_credential_file('AWSAccessKeyId', credential_file) } }
+
+    fetch(:aws_secret_access_key) { -> { ENV['AWS_SECRET_ACCESS_KEY'] || Capistrano::Ec2tag.read_from_credential_file('AWSSecretKey', credential_file) } }
+
+    fetch(:ec2) { -> { @ec2 ||= AWS::EC2.new({access_key_id: fetch(:aws_access_key_id), secret_access_key: fetch(:aws_secret_access_key), region: fetch(:aws_region, 'us-east-1')}.merge! fetch(:aws_params, {})) } }
+    fetch(:auto_scaling) { -> { @auto_scaling ||= AWS::AutoScaling.new({access_key_id: fetch(:aws_access_key_id), secret_access_key: fetch(:aws_secret_access_key), region: fetch(:aws_region, 'us-east-1')}.merge! fetch(:aws_params, {})) } }
+  end
+
+  task :fetch_primary_instance do
+    fetch(:primary_instance) { -> {
+      instance = nil
+      fetch(:ec2).instances.filter('ip-address', primary(:app).to_s).each do |inst|
+        instance ||= inst
+      end
+      instance
+    } }
+  end
+
+  task :prepare_primary do
+    on primary(:app) do
+        info "uploading"
+        upload! File.expand_path('../../../../bin/userdata.sh', __FILE__), './userdata.sh'
+        upload! File.expand_path('../../../../bin/prep_instance.py', __FILE__), './prep_instance.py'
+
+        execute "mv #{deploy_path} #{deploy_path}.static"
+
+        info "done uploading"
+    end
+  end
+
+
+
+  task :revert_primary do
+    on primary(:app) do
+      info "reverting"
+      execute "mv #{deploy_path}.static #{deploy_path}"
+      info "done"
+    end
+  end
+
+  before :fetch_primary_instance, :aws_credentials
+end

@@ -1,0 +1,62 @@
+namespace :autoscale do
+  include EbsAutoscale::AutoscaleHelper
+
+  task :setup_launch_configuration do
+    run_locally do
+      images = []
+      fetch(:ec2).images.tagged('Name').tagged_values("ami-for-#{fetch(:application)}").each { |i| images << i }
+      image = images.max_by(&:name)
+      info "setting launch configuration with ami #{image.name}"
+      instance = fetch(:primary_instance)
+      new_instance_data = {
+          availability_zone: fetch(:as_availability_zone, instance.availability_zone),
+          key_pair: fetch(:as_key_pair, instance.key_pair),
+          security_groups: [*fetch(:as_security_groups, instance.security_groups)],
+          subnet: fetch(:as_subnet, instance.subnet),
+         # block_device_mappings: [{no_device: '', device_name: '/dev/sdf'}],
+          associate_public_ip_address: true,
+          iam_instance_profile: fetch(:iam_role),
+          user_data: <<USERDATA
+#!/bin/bash -ex
+exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
+/home/ubuntu/userdata.sh #{fetch(:application)} #{fetch(:application)}-instance #{fetch(:app_deploy_tag)}
+#{fetch(:as_startup_script)}
+USERDATA
+      }
+      name, _ = get_next_name_from_repository(fetch(:application), fetch(:auto_scaling).launch_configurations)
+      fetch(:auto_scaling).launch_configurations.create(name, image.id, fetch(:as_instance_type, instance.instance_type), new_instance_data)
+    end
+  end
+
+  task :setup_scaling_group do
+    run_locally do
+      instance = fetch(:primary_instance)
+      name, last = get_next_name_from_repository(fetch(:application), fetch(:auto_scaling).groups)
+      launch_configuration = get_names_from_repository(fetch(:application), fetch(:auto_scaling).launch_configurations).keys.max
+      new_group = fetch(:auto_scaling).groups.create(name,
+                                                     launch_configuration: launch_configuration,
+                                                     min_size: fetch(:auto_scale_min_size, 2),
+                                                     max_size: fetch(:auto_scale_max_size, 6),
+                                                     subnets: [*fetch(:as_subnet, instance.subnet)],
+                                                     load_balancers: fetch(:load_balancers)
+      )
+      if last
+        @cloud_watch ||= AWS::CloudWatch.new({access_key_id: fetch(:aws_access_key_id), secret_access_key: fetch(:aws_secret_access_key), region: fetch(:aws_region, 'us-east-1')}.merge! fetch(:aws_params, {}))
+        last.scaling_policies.each do |policy|
+          props = Hash[%i(adjustment_type scaling_adjustment cooldown min_adjustment_step).map { |s| [s, policy.send(s)] }.reject { |_, v| v.nil? }]
+          new_group.scaling_policies[policy.name].put(props)
+          policy.alarms.each do |k|
+            alarm = @cloud_watch.alarms[k]
+            alarm_props = Hash[%i(namespace metric_name comparison_operator evaluation_periods period statistic threshold insufficient_data_actions ok_actions actions_enabled alarm_actions alarm_description unit).map { |s| [s, alarm.send(s)] }.reject { |_, v| v.nil? }]
+            (alarm_props[:alarm_actions] ||= []) << new_group.scaling_policies[policy.name].arn
+            alarm.update(alarm_props)
+          end
+        end
+      end
+    end
+  end
+
+  before :setup_scaling_group, :fetch_primary_instance
+
+  before :setup_launch_configuration, :fetch_primary_instance
+end

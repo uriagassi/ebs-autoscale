@@ -1,0 +1,14 @@
+load File.expand_path('../ebs_snapshot.cap', __FILE__)
+
+namespace :autoscale do
+  task :setup_ebs do
+    on primary(:app) do
+      upload! File.expand_path('../../../../bin/create_mount.sh', __FILE__), './create_mount.sh'
+      execute "~/create_mount.sh #{fetch(:application)}"
+    end
+  end
+
+  before :setup_ebs, :prepare_primary
+  after :setup_ebs, 'autoscale:revert_primary'
+  after :setup_ebs, 'deploy:snapshot'
+end

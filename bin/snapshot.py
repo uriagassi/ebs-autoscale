@@ -18,6 +18,9 @@ def parsed_args():
     parser.add_argument('-t', "--tag", 
         help="the tag you'd like to apply to the snapshot. default: codepen-app", 
         default='codepen-app')
+    parser.add_argument('-n', '--name_hash',
+        help="version hash, will be added to the snapshot description",
+        default='')
     return parser.parse_args()
     
 def main():
@@ -35,13 +38,13 @@ def main():
 
     print "found. the plan is to snapshot %s with tag %s" % (args.mount_point, args.tag)
 
-    snap = code_volume.create_snapshot(snapshot_description(code_volume, args.instance_id))
+    snap = code_volume.create_snapshot(snapshot_description(code_volume, args.instance_id, args.name_hash))
     snap.add_tag('Name', args.tag)
 
     print "done."
 
-def snapshot_description(volume, instance_id):
-    return "deployment snapshot of volume %s on instance %s" % (volume.id, instance_id)
+def snapshot_description(volume, instance_id, hash):
+    return "deployment snapshot of volume %s on instance %s (%s)" % (volume.id, instance_id, hash)
 
 if __name__ == '__main__':
     main()
