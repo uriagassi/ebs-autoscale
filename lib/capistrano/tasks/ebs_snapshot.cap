@@ -2,8 +2,8 @@ namespace :deploy do
 
   task :snapshot do
     on primary(:app) do
-      upload! File.expand_path('../../../../bin/snapshot.py', __FILE__), './snapshot.py'
       if fetch(:as_enable)
+        upload! File.expand_path('../../../../bin/snapshot.py', __FILE__), './snapshot.py'
         after_deploy_sha = capture("cd #{repo_path}; git rev-parse --verify #{fetch(:branch)}")
         execute "BOTO_CONFIG=~/.boto ~/snapshot.py -t app_#{fetch(:application)} -n #{after_deploy_sha[0..9]}"
       end
