@@ -2,14 +2,31 @@ namespace :deploy do
 
   task :snapshot do
     on primary(:app) do
-      if fetch(:as_enable)
+      if fetch(:as_enable) && !fetch(:snapshot_run)
         upload! File.expand_path('../../../../bin/snapshot.py', __FILE__), './snapshot.py'
         after_deploy_sha = capture("cd #{repo_path}; git rev-parse --verify #{fetch(:branch)}")
         execute "BOTO_CONFIG=~/.boto ~/snapshot.py -t app_#{fetch(:application)} -n #{after_deploy_sha[0..9]}"
+        set :snapshot_run, true
+      end
+    end
+  end
+  task :snapshot_cleanup do
+    run_locally do
+      if fetch(:as_enable) && !fetch(:snapshot_cleanup_run)
+        snapshots = []
+        fetch(:ec2).snapshots.filter('tag:Name', "app_#{fetch(:application)}").each do |snapshot|
+          snapshots << snapshot
+        end
+        to_delete = snapshots.sort_by(&:start_time).reverse.drop(fetch(:keep_releases))
+        info "about to delete snapshots #{to_delete.map(&:id).join(',')}"
+        to_delete.each(&:delete)
+        set :snapshot_cleanup_run, true
       end
     end
   end
 end
 
 
-after 'deploy:finishing', "deploy:snapshot"
+after 'deploy:finishing', 'deploy:snapshot'
+after 'deploy:snapshot', 'deploy:snapshot_cleanup'
+before 'deploy:snapshot_cleanup', 'autoscale:aws_credentials'
