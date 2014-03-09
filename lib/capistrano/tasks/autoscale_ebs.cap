@@ -4,7 +4,8 @@ namespace :autoscale do
   task :setup_ebs do
     on primary(:app) do
       upload! File.expand_path('../../../../bin/create_mount.sh', __FILE__), './create_mount.sh'
-      execute "~/create_mount.sh #{fetch(:application)}"
+      upload! File.expand_path('../../../../bin/setup_ebs.sh', __FILE__), './setup_ebs.sh'
+      execute "~/setup_ebs.sh #{fetch(:application)}"
     end
   end
 

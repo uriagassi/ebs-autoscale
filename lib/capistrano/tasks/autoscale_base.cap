@@ -26,8 +26,10 @@ namespace :autoscale do
         info "uploading"
         upload! File.expand_path('../../../../bin/userdata.sh', __FILE__), './userdata.sh'
         upload! File.expand_path('../../../../bin/prep_instance.py', __FILE__), './prep_instance.py'
-
-        execute "mv #{deploy_path} #{deploy_path}.static"
+        unless fetch(:moved)
+          execute "mv #{deploy_path} #{deploy_path}.static"
+          set :moved, true
+        end
 
         info "done uploading"
     end
@@ -37,9 +39,12 @@ namespace :autoscale do
 
   task :revert_primary do
     on primary(:app) do
-      info "reverting"
-      execute "mv #{deploy_path}.static #{deploy_path}"
-      info "done"
+      if fetch(:moved)
+        info "reverting"
+        execute "mv #{deploy_path}.static #{deploy_path}"
+        info "done"
+        set :moved, false
+      end
     end
   end
 
