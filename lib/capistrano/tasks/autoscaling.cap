@@ -19,11 +19,11 @@ namespace :autoscale do
           user_data: <<USERDATA
 #!/bin/bash -ex
 exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
-INSTANCE_TAGS=#{fetch(:as_instance_tags, {}).merge(Name: "#{fetch(:application)}-instance", deploy: fetch(:app_deploy_tag)).to_json.to_json}  /home/ubuntu/userdata.sh #{fetch(:application)}
+INSTANCE_TAGS=#{fetch(:as_instance_tags, {}).merge(Name: fetch(:as_autoscale_name, "#{fetch(:application)}-instance"), deploy: fetch(:app_deploy_tag)).to_json.to_json}  /home/ubuntu/userdata.sh #{fetch(:application)}
 #{fetch(:as_startup_script)}
 USERDATA
       }
-      name, _ = get_next_name_from_repository(fetch(:application), fetch(:auto_scaling).launch_configurations)
+      name, _ = get_next_name_from_repository(fetch(:as_autoscale_name, fetch(:application)), fetch(:auto_scaling).launch_configurations)
       fetch(:auto_scaling).launch_configurations.create(name, image.id, fetch(:as_instance_type, instance.instance_type), new_instance_data)
     end
   end
@@ -31,8 +31,8 @@ USERDATA
   task :setup_scaling_group do
     run_locally do
       instance = fetch(:primary_instance)
-      name, last = get_next_name_from_repository(fetch(:application), fetch(:auto_scaling).groups)
-      launch_configuration = get_names_from_repository(fetch(:application), fetch(:auto_scaling).launch_configurations).keys.max
+      name, last = get_next_name_from_repository(fetch(:as_autoscale_name, fetch(:application)), fetch(:auto_scaling).groups)
+      launch_configuration = get_names_from_repository(fetch(:as_autoscale_name, fetch(:application)), fetch(:auto_scaling).launch_configurations).keys.max
       new_group = fetch(:auto_scaling).groups.create(name,
                                                      launch_configuration: launch_configuration,
                                                      min_size: fetch(:auto_scale_min_size, 2),
