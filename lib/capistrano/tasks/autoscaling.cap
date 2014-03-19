@@ -19,7 +19,7 @@ namespace :autoscale do
           user_data: <<USERDATA
 #!/bin/bash -ex
 exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
-/home/ubuntu/userdata.sh #{fetch(:application)} #{fetch(:application)}-instance #{fetch(:app_deploy_tag)}
+INSTANCE_TAGS=#{fetch(:as_instance_tags, {}).merge(Name: "#{fetch(:application)}-instance", deploy: fetch(:app_deploy_tag)).to_json.to_json}  /home/ubuntu/userdata.sh #{fetch(:application)}
 #{fetch(:as_startup_script)}
 USERDATA
       }
