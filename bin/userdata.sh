@@ -9,4 +9,4 @@ fi
 
 /home/ubuntu/prep_instance.py -g ${INSTANCE_TAGS} -t app_$1
 
-./create_mount.sh $1
+/home/ubuntu/create_mount.sh $1
