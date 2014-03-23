@@ -61,6 +61,7 @@ namespace :autoscale do
     on roles(:stub) do
       upload! File.expand_path('../../../../bin/userdata.sh', __FILE__), './userdata.sh'
       upload! File.expand_path('../../../../bin/prep_instance.py', __FILE__), './prep_instance.py'
+      upload! File.expand_path('../../../../bin/create_mount.sh', __FILE__), './create_mount.sh'
     end
   end
 
