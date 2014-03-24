@@ -19,8 +19,8 @@ namespace :deploy do
           snapshots << snapshot
         end
         to_delete = snapshots.sort_by(&:start_time).reverse.drop(fetch(:keep_releases))
-        info "about to delete snapshots #{to_delete.map(&:id).join(',')}"
-        to_delete.each(&:delete)
+        info "about to delete snapshots #{to_delete.map(&:id).join(',')}..."
+        info 'not deleting' #to_delete.each(&:delete)
         set :snapshot_cleanup_run, true
       end
     end
