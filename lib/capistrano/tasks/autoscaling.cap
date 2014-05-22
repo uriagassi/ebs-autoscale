@@ -56,7 +56,29 @@ USERDATA
     end
   end
 
+  task :suspend do
+    puts 'Suspending autoscale...'
+    autoscale_groups = get_names_from_repository(fetch(:as_autoscale_name, fetch(:application)), fetch(:auto_scaling).groups)
+    autoscale_groups.each do |_, group|
+      puts "Suspending #{group.name}..."
+      group.suspend_all_processes
+    end
+  end
+
+  task :resume do
+    puts 'Resuming autoscale...'
+    autoscale_groups = get_names_from_repository(fetch(:as_autoscale_name, fetch(:application)), fetch(:auto_scaling).groups)
+    autoscale_groups.each do |_, group|
+      puts "Resuming #{group.name}..."
+      group.resume_all_processes
+    end
+  end
+
   before :setup_scaling_group, :fetch_primary_instance
+
+  before :suspend, :fetch_primary_instance
+
+  before :resume, :fetch_primary_instance
 
   before :setup_launch_configuration, :fetch_primary_instance
 end

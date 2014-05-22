@@ -20,14 +20,18 @@ namespace :deploy do
         end
         to_delete = snapshots.sort_by(&:start_time).reverse.drop(fetch(:keep_releases))
         info "about to delete snapshots #{to_delete.map(&:id).join(',')}..."
-        info 'not deleting' #to_delete.each(&:delete)
+        to_delete.each(&:delete)
         set :snapshot_cleanup_run, true
       end
     end
   end
 end
 
-
+before 'deploy', 'autoscale:suspend'
 after 'deploy:finishing', 'deploy:snapshot'
+
+before 'deploy:snapshot', 'autoscale:suspend'
 after 'deploy:snapshot', 'deploy:snapshot_cleanup'
+after 'deploy:snapshot', 'autoscale:resume'
+
 before 'deploy:snapshot_cleanup', 'autoscale:aws_credentials'
