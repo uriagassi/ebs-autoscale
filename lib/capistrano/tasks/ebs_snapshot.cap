@@ -5,7 +5,7 @@ namespace :deploy do
       if fetch(:as_enable) && !fetch(:snapshot_run)
         upload! File.expand_path('../../../../bin/snapshot.py', __FILE__), './snapshot.py'
         after_deploy_sha = capture("cd #{repo_path}; git rev-parse --verify #{fetch(:branch)}")
-        sleep 2
+        # sleep 2
         execute "BOTO_CONFIG=~/.boto ~/snapshot.py -t app_#{fetch(:application)} -n #{after_deploy_sha[0..9]}"
         set :snapshot_run, true
       end
