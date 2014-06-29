@@ -1,6 +1,7 @@
 #! /usr/bin/python
 
 from boto import ec2;
+import os
 import boto.utils
 import argparse
 
@@ -38,6 +39,7 @@ def main():
 
     print "found. the plan is to snapshot %s with tag %s" % (args.mount_point, args.tag)
 
+    os.system("sync")
     snap = code_volume.create_snapshot(snapshot_description(code_volume, args.instance_id, args.name_hash))
     snap.add_tag('Name', args.tag)
 
